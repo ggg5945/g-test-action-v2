@@ -32,8 +32,8 @@ jobs:
       - name: Started service
         run: echo start over &
       
-      # 等待3600秒后退出
+      # 等待7200秒后退出
       - name: Wait for services to start
-        run: sleep 3600
+        run: sleep 7200
       
       

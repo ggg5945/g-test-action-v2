@@ -23,27 +23,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-            echo "Running gh run list for workflow: ${{ github.workflow }}"
-            last_run=$(gh run list --workflow="${{ github.workflow }}" --limit 1 --json conclusion,updatedAt --jq '.[0]' || echo "{}")
-            echo "last_run: $last_run"
-            conclusion=$(echo "$last_run" | jq -r .conclusion)
-            updated_at=$(echo "$last_run" | jq -r .updatedAt)
-            echo "conclusion: $conclusion, updated_at: $updated_at"
-            if [[ -z "$updated_at" ]]; then
-              updated_at="1970-01-01T00:00:00Z"
-              echo "No valid updated_at, setting to 1970-01-01T00:00:00Z"
-            fi
-            ended_time=$(date -d "$updated_at" +%s)
-            current_time=$(date +%s)
-            time_diff=$((current_time - ended_time))
-            echo "time_diff: $time_diff seconds"
-            if [[ ("$conclusion" == "success" || "$conclusion" == "cancelled") && $time_diff -ge 600 ]] || [[ "$updated_at" == "1970-01-01T00:00:00Z" ]]; then
-              echo "should_run=true" >> $GITHUB_OUTPUT
-              echo "Setting should_run=true"
-            else
-              echo "should_run=false" >> $GITHUB_OUTPUT
-              echo "Setting should_run=false"
-            fi
+          echo "Running gh run list for workflow: ${{ github.workflow }} in repo: ${{ github.repository }}"
+          last_run=$(gh run list --repo "${{ github.repository }}" --workflow="${{ github.workflow }}" --limit 1 --json conclusion,updatedAt --jq '.[0]' || echo "{}")
+          echo "last_run: $last_run"
+          conclusion=$(echo "$last_run" | jq -r .conclusion)
+          updated_at=$(echo "$last_run" | jq -r .updatedAt)
+          echo "conclusion: $conclusion, updated_at: $updated_at"
+          if [[ -z "$updated_at" || "$updated_at" == "null" ]]; then
+            updated_at="1970-01-01T00:00:00Z"
+            echo "No valid updated_at, setting to 1970-01-01T00:00:00Z"
+          fi
+          ended_time=$(date -d "$updated_at" +%s)
+          current_time=$(date +%s)
+          time_diff=$((current_time - ended_time))
+          echo "time_diff: $time_diff seconds"
+          if [[ ("$conclusion" == "success" || "$conclusion" == "cancelled") && $time_diff -ge 600 ]] || [[ "$updated_at" == "1970-01-01T00:00:00Z" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Setting should_run=true"
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Setting should_run=false"
+          fi
 
       # 如果 should_run 为 false 且不是手动触发，直接退出
       - name: Exit if not needed

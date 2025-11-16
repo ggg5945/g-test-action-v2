@@ -37,12 +37,20 @@ jobs:
           current_time=$(date +%s)
           time_diff=$((current_time - ended_time))
           echo "time_diff: $time_diff seconds"
-          if [[ ("$conclusion" == "success" || "$conclusion" == "cancelled") && $time_diff -ge 600 ]] || [[ "$updated_at" == "1970-01-01T00:00:00Z" ]]; then
+          if [[ "$conclusion" == "success" || "$conclusion" == "cancelled" || "$conclusion" == "failure" ]]; then
+            if [[ $time_diff -ge 600 ]]; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+              echo "Setting should_run=true (last run ended $time_diff seconds ago)"
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "Setting should_run=false (only $time_diff seconds since last run)"
+            fi
+          elif [[ "$updated_at" == "1970-01-01T00:00:00Z" ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
-            echo "Setting should_run=true"
+            echo "Setting should_run=true (no previous run)"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "Setting should_run=false"
+            echo "Setting should_run=false (workflow is currently running)"
           fi
           
   run-services:

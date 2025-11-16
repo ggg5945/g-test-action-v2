@@ -24,17 +24,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Current run ID: ${{ github.run_id }}"
-          # 获取最近2次运行，排除当前运行
-          last_run=$(gh run list \
+          # 获取最近13次运行，排除当前运行
+          recent_runs=$(gh run list \
             --repo "${{ github.repository }}" \
             --workflow="${{ github.workflow }}" \
-            --limit 2 \
-            --json conclusion,updatedAt,databaseId \
-            --jq '[.[] | select(.databaseId != ${{ github.run_id }})][0]' || echo "{}")
+            --limit 13 \
+            --json conclusion,updatedAt,databaseId,status \
+            --jq '[.[] | select(.databaseId != ${{ github.run_id }})]' || echo "[]")
           
-          echo "last_run: $last_run"
-          conclusion=$(echo "$last_run" | jq -r '.conclusion // ""')
-          updated_at=$(echo "$last_run" | jq -r '.updatedAt // ""')
+          echo "recent_runs: $recent_runs"
+          
+          # 检查是否有正在执行中的运行
+          running_count=$(echo "$recent_runs" | jq '[.[] | select(.status == "in_progress" or .status == "queued" or .status == "waiting")] | length')
+          echo "running_count: $running_count"
+          
+          if [[ $running_count -gt 0 ]]; then
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Setting should_run=false (found $running_count running workflow(s) in recent 13 runs)"
+            exit 0
+          fi
+          
+          # 如果没有正在运行的，获取最近一次完成的运行
+          last_completed=$(echo "$recent_runs" | jq '[.[] | select(.conclusion != null)][0]')
+          echo "last_completed: $last_completed"
+          
+          conclusion=$(echo "$last_completed" | jq -r '.conclusion // ""')
+          updated_at=$(echo "$last_completed" | jq -r '.updatedAt // ""')
           
           echo "conclusion: $conclusion, updated_at: $updated_at"
           
@@ -51,17 +66,12 @@ jobs:
           echo "time_diff: $time_diff seconds"
           
           # 检查是否已完成且超过10分钟
-          if [[ "$conclusion" == "success" || "$conclusion" == "cancelled" || "$conclusion" == "failure" ]]; then
-            if [[ $time_diff -ge 600 ]]; then
-              echo "should_run=true" >> $GITHUB_OUTPUT
-              echo "Setting should_run=true (last run ended $time_diff seconds ago)"
-            else
-              echo "should_run=false" >> $GITHUB_OUTPUT
-              echo "Setting should_run=false (only $time_diff seconds since last run)"
-            fi
+          if [[ $time_diff -ge 600 ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Setting should_run=true (last run ended $time_diff seconds ago)"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "Setting should_run=false (previous workflow still running or in unknown state)"
+            echo "Setting should_run=false (only $time_diff seconds since last run)"
           fi
           
   run-services:

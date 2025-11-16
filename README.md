@@ -23,4 +23,6 @@ Owner ggg5945 is not on a new pricing.
 
 https://app.circleci.com/home
 docker方式部署的，需要保持前台运行不然会没有效果，先暂时不改了
+30,000 credits/mo, that’s up to 6,000 build mins。每个月只有100小时的使用时间
+0 GB of 1 GB used。每个月只有1G流量？
 

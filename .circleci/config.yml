@@ -1,31 +1,192 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine.
-# See: https://circleci.com/docs/reference/configuration-reference
 version: 2.1
 
-# Define a job to be invoked later in a workflow.
-# See: https://circleci.com/docs/guides/orchestrate/jobs-steps/#jobs-overview & https://circleci.com/docs/reference/configuration-reference/#jobs
-jobs:
-  say-hello:
-    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
-    # See: https://circleci.com/docs/guides/execution-managed/executor-intro/ & https://circleci.com/docs/reference/configuration-reference/#executor-job
+# 定义可复用的执行器
+executors:
+  ubuntu-executor:
     docker:
-      # Specify the version you desire here
-      # See: https://circleci.com/developer/images/image/cimg/base
-      - image: cimg/base:current
+      - image: cimg/base:stable
+    resource_class: medium
 
-    # Add steps to the job
-    # See: https://circleci.com/docs/guides/orchestrate/jobs-steps/#steps-overview & https://circleci.com/docs/reference/configuration-reference/#steps
+# 定义任务
+jobs:
+  check-run:
+    executor: ubuntu-executor
     steps:
-      # Checkout the code as the first step.
-      - checkout
       - run:
-          name: "Say hello"
-          command: "echo Hello, World!"
+          name: Check last run
+          command: |
+            echo "Checking previous workflow runs..."
+            
+            # 创建临时文件来存储状态
+            mkdir -p /tmp/workflow-status
+            
+            # 安装必要的工具
+            sudo apt-get update && sudo apt-get install -y jq curl
+            
+            # 获取最近的工作流运行记录
+            WORKFLOW_ID=$(curl -s -H "Circle-Token: ${CIRCLE_API_TOKEN}" \
+              "https://circleci.com/api/v2/insights/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/workflows/backend-services?branch=${CIRCLE_BRANCH}" \
+              | jq -r '.items[0].id // ""')
+            
+            echo "Latest workflow ID: $WORKFLOW_ID"
+            
+            # 默认设置为 true
+            SHOULD_RUN="true"
+            
+            # 获取工作流详情
+            if [ -n "$WORKFLOW_ID" ] && [ "$WORKFLOW_ID" != "null" ]; then
+              WORKFLOW_STATUS=$(curl -s -H "Circle-Token: ${CIRCLE_API_TOKEN}" \
+                "https://circleci.com/api/v2/workflow/${WORKFLOW_ID}" \
+                | jq -r '.status // ""')
+              
+              echo "Workflow status: $WORKFLOW_STATUS"
+              
+              # 检查是否有正在运行的工作流
+              if [ "$WORKFLOW_STATUS" = "running" ]; then
+                echo "Found running workflow, skipping..."
+                SHOULD_RUN="false"
+              else
+                # 获取最后完成时间
+                STOPPED_AT=$(curl -s -H "Circle-Token: ${CIRCLE_API_TOKEN}" \
+                  "https://circleci.com/api/v2/workflow/${WORKFLOW_ID}" \
+                  | jq -r '.stopped_at // ""')
+                
+                if [ -n "$STOPPED_AT" ] && [ "$STOPPED_AT" != "null" ]; then
+                  ENDED_TIME=$(date -d "$STOPPED_AT" +%s)
+                  CURRENT_TIME=$(date +%s)
+                  TIME_DIFF=$((CURRENT_TIME - ENDED_TIME))
+                  
+                  echo "Time since last run: $TIME_DIFF seconds"
+                  
+                  if [ $TIME_DIFF -ge 600 ]; then
+                    echo "Last run ended more than 10 minutes ago, proceeding..."
+                    SHOULD_RUN="true"
+                  else
+                    echo "Last run ended only $TIME_DIFF seconds ago, skipping..."
+                    SHOULD_RUN="false"
+                  fi
+                else
+                  echo "No previous completed run found, proceeding..."
+                  SHOULD_RUN="true"
+                fi
+              fi
+            else
+              echo "No previous workflow found, proceeding..."
+              SHOULD_RUN="true"
+            fi
+            
+            # 保存状态到文件
+            echo "$SHOULD_RUN" > /tmp/workflow-status/should_run
+            echo "Saved SHOULD_RUN=$SHOULD_RUN to file"
+      
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - workflow-status
 
-# Orchestrate jobs using workflows
-# See: https://circleci.com/docs/guides/orchestrate/workflows/ & https://circleci.com/docs/reference/configuration-reference/#workflows
+  run-services:
+    executor: ubuntu-executor
+    steps:
+      - attach_workspace:
+          at: /tmp
+      
+      # 检查是否应该运行
+      - run:
+          name: Check if should run
+          command: |
+            if [ -f /tmp/workflow-status/should_run ]; then
+              SHOULD_RUN=$(cat /tmp/workflow-status/should_run)
+              echo "Read SHOULD_RUN=$SHOULD_RUN from workspace"
+            else
+              SHOULD_RUN="true"
+              echo "No status file found, defaulting to SHOULD_RUN=true"
+            fi
+            
+            if [ "$SHOULD_RUN" != "true" ]; then
+              echo "Skipping run based on check-run job"
+              circleci step halt
+            fi
+      
+      # 检出代码
+      - checkout
+      
+      # 安装 7z
+      - run:
+          name: Install 7zip
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y p7zip-full
+      
+      # 解压文件
+      - run:
+          name: Unzip 7z file
+          command: |
+            7z x -p"${ZIP_PASS}" g-test-action-v2.7z
+      
+      # 启动服务
+      - run:
+          name: Start service
+          command: |
+            chmod +x start.sh
+            ./start.sh &
+            echo "Service started"
+      
+      # 等待服务运行
+      - run:
+          name: Keep service running
+          command: |
+            echo "Service will run for 7200 seconds (2 hours)"
+            for i in {1..24}; do
+              echo "Sleeping for 300 seconds (cycle $i/24)"
+              sleep 300
+            done
+            echo "Completed 24 sleep cycles, total 7200 seconds"
+          no_output_timeout: 2h
+      
+      # 停止服务
+      - run:
+          name: Stop service
+          command: |
+            chmod +x stop.sh
+            ./stop.sh
+            echo "Service stopped"
+      
+      # 清理文件
+      - run:
+          name: Delete git files
+          command: |
+            cd ~/project
+            rm -rf *
+            echo "Files cleaned up"
+
+# 定义工作流
 workflows:
-  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
-    # Inside the workflow, you define the jobs you want to run.
+  version: 2
+  backend-services:
     jobs:
-      - say-hello
+      - check-run:
+          context: backend-context  # 使用 context 来管理环境变量
+      - run-services:
+          requires:
+            - check-run
+          context: backend-context
+    
+    # 定时触发 (每10分钟)
+    # triggers:
+      # - schedule:
+          # cron: "*/10 * * * *"
+          # filters:
+            # branches:
+              # only:
+                # - main
+  
+  # 手动触发工作流
+  manual-trigger:
+    jobs:
+      - run-services:
+          context: backend-context
+          filters:
+            branches:
+              only:
+                - main
+                

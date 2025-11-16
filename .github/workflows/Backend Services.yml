@@ -38,7 +38,7 @@ jobs:
           time_diff=$((current_time - ended_time))
           echo "time_diff: $time_diff seconds"
           if [[ "$conclusion" == "success" || "$conclusion" == "cancelled" || "$conclusion" == "failure" ]]; then
-            if [[ $time_diff -ge 600 ]]; then
+            if [[ $time_diff -ge 300 ]]; then
               echo "should_run=true" >> $GITHUB_OUTPUT
               echo "Setting should_run=true (last run ended $time_diff seconds ago)"
             else

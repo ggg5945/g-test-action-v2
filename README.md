@@ -12,3 +12,12 @@ git commit --allow-empty -m "Trigger workflow"
 
 git push
 
+
+travis-ci.com 收费
+ master f62353f
+ less than a minute ago
+travis-ci 2
+-
+Owner ggg5945 is not on a new pricing.
+
+

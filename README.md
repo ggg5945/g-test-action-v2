@@ -1,1 +1,11 @@
 # g-test-action-v2
+
+如果推送，但是没有任何更新，可以触发actions的执行吗
+
+可以触发，但需要使用特定方法。
+
+方法 1：空提交（推荐）
+bash
+git commit --allow-empty -m "Trigger workflow"
+git push
+

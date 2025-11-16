@@ -96,6 +96,10 @@ jobs:
             done
             echo "Completed 24 sleep cycles, total 7200 seconds"
       
+      # 停止服务
+      - name: stop service
+        run: chmod +x stop.sh && ./stop.sh &
+      
       # 删除仓库目录的文件
       - name: del git file
         run: rm -rf * &

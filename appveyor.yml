@@ -64,7 +64,8 @@ build_script:
       
       # 等待 7200 秒（24 个循环，每次 300 秒）
       for i in $(seq 1 24); do
-        echo "Sleeping for 300 seconds (cycle $i/24)"
+        CURRENT_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S.%3N')
+        echo "Current time (UTC+8): $CURRENT_TIME - Sleeping for 300 seconds (cycle $i/24)"
         sleep 300
       done
       

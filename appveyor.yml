@@ -5,12 +5,6 @@ version: 1.0.{build}
 #   only:
 #     - main
 
-# 定时任务：每10分钟运行一次
-# 注意：AppVeyor 的 cron 语法与 GitHub Actions 相同
-scheduled_builds:
-  - cron: "*/10 * * * *"
-    branch: main
-
 # 使用 Ubuntu 镜像
 image: Ubuntu2204
 
@@ -32,9 +26,9 @@ init:
 # 安装依赖
 install:
   - sh: |
-      # 安装 p7zip（如果需要）
+      # 安装必要工具
       sudo apt-get update
-      sudo apt-get install -y p7zip-full
+      sudo apt-get install -y p7zip-full jq curl
 
 # 构建脚本
 build_script:
@@ -47,41 +41,12 @@ build_script:
         echo "Manual trigger detected, will run"
         SHOULD_RUN="true"
       else
-        # 检查上次构建时间（AppVeyor 提供的环境变量）
-        # 注意：AppVeyor 的 API 调用方式与 GitHub 不同
-        echo "Checking last build time..."
+        echo "Scheduled or commit trigger, checking conditions..."
         
-        # 获取最近的构建历史
-        BUILDS=$(curl -s -H "Authorization: Bearer $APPVEYOR_API_TOKEN" \
-          "https://ci.appveyor.com/api/projects/$APPVEYOR_ACCOUNT_NAME/$APPVEYOR_PROJECT_SLUG/history?recordsNumber=10")
-        
-        # 检查是否有正在运行的构建
-        RUNNING_COUNT=$(echo "$BUILDS" | jq '[.builds[] | select(.status == "running" or .status == "queued")] | length' 2>/dev/null || echo "0")
-        
-        if [ "$RUNNING_COUNT" -gt "1" ]; then
-          echo "Found $RUNNING_COUNT running builds, skipping..."
-          SHOULD_RUN="false"
-        else
-          # 检查最后完成时间
-          LAST_FINISHED=$(echo "$BUILDS" | jq -r '[.builds[] | select(.status == "success" or .status == "failed")][0].finished' 2>/dev/null || echo "")
-          
-          if [ -n "$LAST_FINISHED" ] && [ "$LAST_FINISHED" != "null" ]; then
-            ENDED_TIME=$(date -d "$LAST_FINISHED" +%s 2>/dev/null || date +%s)
-            CURRENT_TIME=$(date +%s)
-            TIME_DIFF=$((CURRENT_TIME - ENDED_TIME))
-            
-            echo "Time since last build: $TIME_DIFF seconds"
-            
-            if [ $TIME_DIFF -lt 600 ]; then
-              echo "Only $TIME_DIFF seconds since last run, skipping..."
-              SHOULD_RUN="false"
-            fi
-          fi
-        fi
+        # 简化版本：由于 AppVeyor API 调用较复杂，这里简化处理
+        # 如果需要复杂的时间检查，需要配置 API token
+        SHOULD_RUN="true"
       fi
-      
-      # 设置环境变量供后续步骤使用
-      echo "SHOULD_RUN=$SHOULD_RUN" >> $APPVEYOR_BUILD_FOLDER/.env
       
       if [ "$SHOULD_RUN" = "false" ]; then
         echo "Skipping build based on conditions"
@@ -110,8 +75,8 @@ build_script:
         chmod +x stop.sh && ./stop.sh
       fi
       
-      # 清理文件
-      rm -rf *
+      # 清理文件（可选）
+      # rm -rf *
 
 # 测试脚本（可选）
 test_script:
@@ -132,5 +97,5 @@ on_finish:
 # 不创建构建包
 artifacts: []
 
-# 部署配置（如果需要）
-# deploy: off
+# 部署配置
+deploy: off

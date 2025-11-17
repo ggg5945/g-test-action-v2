@@ -36,3 +36,10 @@ git gc --prune=now --aggressive
 
 
 
+## 按Tab无提示问题
+```
+会优先使用 bash，如果不存在则回退到 sh
+$(command -v bash || command -v sh)
+但是实际测试不能切换到其他目录
+```
+

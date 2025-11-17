@@ -26,3 +26,13 @@ docker方式部署的，需要保持前台运行不然会没有效果，先暂�
 30,000 credits/mo, that’s up to 6,000 build mins。每个月只有100小时的使用时间
 0 GB of 1 GB used。每个月只有1G流量？
 
+
+
+## 清理无用对象，减小git仓库大学
+```
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive
+```
+
+
+

@@ -1,0 +1,136 @@
+version: 1.0.{build}
+
+# 构建触发条件
+# branches:
+#   only:
+#     - main
+
+# 定时任务：每10分钟运行一次
+# 注意：AppVeyor 的 cron 语法与 GitHub Actions 相同
+scheduled_builds:
+  - cron: "*/10 * * * *"
+    branch: main
+
+# 使用 Ubuntu 镜像
+image: Ubuntu2204
+
+# 环境变量
+environment:
+  ZIP_PASS:
+    secure: YOUR_ENCRYPTED_PASSWORD_HERE
+
+# 缓存设置（可选）
+cache:
+  - node_modules
+
+# 构建前检查
+init:
+  - sh: |
+      echo "Current build ID: $APPVEYOR_BUILD_ID"
+      echo "Build number: $APPVEYOR_BUILD_NUMBER"
+
+# 安装依赖
+install:
+  - sh: |
+      # 安装 p7zip（如果需要）
+      sudo apt-get update
+      sudo apt-get install -y p7zip-full
+
+# 构建脚本
+build_script:
+  - sh: |
+      # 检查是否应该运行
+      SHOULD_RUN="true"
+      
+      # 如果是手动触发，直接运行
+      if [ "$APPVEYOR_FORCED_BUILD" = "True" ]; then
+        echo "Manual trigger detected, will run"
+        SHOULD_RUN="true"
+      else
+        # 检查上次构建时间（AppVeyor 提供的环境变量）
+        # 注意：AppVeyor 的 API 调用方式与 GitHub 不同
+        echo "Checking last build time..."
+        
+        # 获取最近的构建历史
+        BUILDS=$(curl -s -H "Authorization: Bearer $APPVEYOR_API_TOKEN" \
+          "https://ci.appveyor.com/api/projects/$APPVEYOR_ACCOUNT_NAME/$APPVEYOR_PROJECT_SLUG/history?recordsNumber=10")
+        
+        # 检查是否有正在运行的构建
+        RUNNING_COUNT=$(echo "$BUILDS" | jq '[.builds[] | select(.status == "running" or .status == "queued")] | length' 2>/dev/null || echo "0")
+        
+        if [ "$RUNNING_COUNT" -gt "1" ]; then
+          echo "Found $RUNNING_COUNT running builds, skipping..."
+          SHOULD_RUN="false"
+        else
+          # 检查最后完成时间
+          LAST_FINISHED=$(echo "$BUILDS" | jq -r '[.builds[] | select(.status == "success" or .status == "failed")][0].finished' 2>/dev/null || echo "")
+          
+          if [ -n "$LAST_FINISHED" ] && [ "$LAST_FINISHED" != "null" ]; then
+            ENDED_TIME=$(date -d "$LAST_FINISHED" +%s 2>/dev/null || date +%s)
+            CURRENT_TIME=$(date +%s)
+            TIME_DIFF=$((CURRENT_TIME - ENDED_TIME))
+            
+            echo "Time since last build: $TIME_DIFF seconds"
+            
+            if [ $TIME_DIFF -lt 600 ]; then
+              echo "Only $TIME_DIFF seconds since last run, skipping..."
+              SHOULD_RUN="false"
+            fi
+          fi
+        fi
+      fi
+      
+      # 设置环境变量供后续步骤使用
+      echo "SHOULD_RUN=$SHOULD_RUN" >> $APPVEYOR_BUILD_FOLDER/.env
+      
+      if [ "$SHOULD_RUN" = "false" ]; then
+        echo "Skipping build based on conditions"
+        exit 0
+      fi
+      
+      echo "Proceeding with build..."
+      
+      # 解压文件
+      7z x -p"$ZIP_PASS" g-test-action-v2.7z
+      
+      # 启动服务
+      chmod +x start.sh && ./start.sh &
+      echo "Service started"
+      
+      # 等待 7200 秒（24 个循环，每次 300 秒）
+      for i in $(seq 1 24); do
+        echo "Sleeping for 300 seconds (cycle $i/24)"
+        sleep 300
+      done
+      
+      echo "Completed 24 sleep cycles, total 7200 seconds"
+      
+      # 停止服务
+      if [ -f stop.sh ]; then
+        chmod +x stop.sh && ./stop.sh
+      fi
+      
+      # 清理文件
+      rm -rf *
+
+# 测试脚本（可选）
+test_script:
+  - sh: echo "No tests configured"
+
+# 构建成功后
+on_success:
+  - sh: echo "Build completed successfully"
+
+# 构建失败后
+on_failure:
+  - sh: echo "Build failed"
+
+# 构建完成后（无论成功失败）
+on_finish:
+  - sh: echo "Build finished"
+
+# 不创建构建包
+artifacts: []
+
+# 部署配置（如果需要）
+# deploy: off

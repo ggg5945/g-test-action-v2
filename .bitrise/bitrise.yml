@@ -78,7 +78,7 @@ workflows:
                   sleep 300
                 done
                 
-                echo "Completed 24 sleep cycles, total 28800 seconds"
+                echo "Completed 96 sleep cycles, total 28800 seconds"
                 
                 # 停止服务
                 if [ -f stop.sh ]; then

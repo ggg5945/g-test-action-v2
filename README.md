@@ -28,7 +28,7 @@ docker方式部署的，需要保持前台运行不然会没有效果，先暂�
 
 
 
-## 清理无用对象，减小git仓库大学
+## 清理无用对象，减小git仓库大小
 ```
 git reflog expire --expire=now --all
 git gc --prune=now --aggressive

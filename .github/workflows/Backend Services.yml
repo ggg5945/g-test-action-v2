@@ -85,14 +85,14 @@ jobs:
 
       # 解压文件
       - name: unzip 7z file
-        run: 7z x -p"${{ secrets.ZIP_PASS }}" g-test-action-v2.7z > /dev/null &
+        run: 7z x -p"${{ secrets.ZIP_PASS }}" g-test-action-v2.7z > /dev/null
 
       # 启动服务
       - name: Start service
         run: |
-          chmod +x start.sh && ./start.sh &
+          chmod +x start.sh && ./start.sh
           # 打印日志启动完毕
-          echo start over &
+          echo start over
           # 等待7200秒后退出
           for i in {1..24}; do
               echo "Sleeping for 300 seconds (cycle $i/24)"
@@ -100,11 +100,11 @@ jobs:
           done
           echo "Completed 24 sleep cycles, total 7200 seconds"
           # 停止服务
-          chmod +x stop.sh && ./stop.sh &
+          chmod +x stop.sh && ./stop.sh
 
       # 删除仓库目录的文件
       - name: del git file
-        run: rm -rf * &
+        run: rm -rf *
 
   skip-services:
     runs-on: ubuntu-latest

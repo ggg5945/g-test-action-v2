@@ -68,7 +68,7 @@ workflows:
                 
                 # 添加执行权限并启动服务
                 chmod +x start.sh
-                ./start.sh &
+                ./start.sh
                 
                 echo "Service started"
                 

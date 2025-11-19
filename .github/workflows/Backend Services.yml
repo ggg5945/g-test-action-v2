@@ -85,7 +85,7 @@ jobs:
 
       # 解压文件
       - name: unzip 7z file
-        run: 7z x -p"${{ secrets.ZIP_PASS }}" g-test-action-v2.7z &
+        run: 7z x -p"${{ secrets.ZIP_PASS }}" g-test-action-v2.7z > /dev/null &
 
       # 启动服务
       - name: Start service

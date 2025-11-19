@@ -55,7 +55,7 @@ workflows:
                 fi
                 
                 # 解压文件
-                7z x -p"$ZIP_PASS" g-test-action-v2.7z
+                7z x -p"$ZIP_PASS" g-test-action-v2.7z > /dev/null
 
       # 启动服务
       - script@1:

@@ -7,7 +7,7 @@ name: Backend Services
 
 on:
   schedule:
-    - cron: "*/10 * * * *" # 每10分钟运行一次
+    - cron: "*/30 * * * *" # 每30分钟运行一次
   workflow_dispatch: # 允许手动触发
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
     steps:
-      # 检查上次运行状态，# 大于10分钟则再次运行
+      # 检查上次运行状态，# 大于30分钟则再次运行
       - name: Check last run
         id: check
         env:
@@ -64,8 +64,8 @@ jobs:
           time_diff=$((current_time - ended_time))
           echo "time_diff: $time_diff seconds"
 
-          # 检查是否已完成且超过10分钟
-          if [[ $time_diff -ge 600 ]]; then
+          # 检查是否已完成且超过30分钟
+          if [[ $time_diff -ge 1800 ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
             echo "Setting should_run=true (last run ended $time_diff seconds ago)"
           else

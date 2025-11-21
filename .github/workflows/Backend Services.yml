@@ -41,39 +41,43 @@ jobs:
             echo "should_run=false" >> $GITHUB_OUTPUT
             echo "Setting should_run=false (found $running_count running workflow(s) in recent 13 runs)"
             exit 0
-          fi
-
-          # 如果没有正在运行的，获取最近一次完成的运行
-          last_completed=$(echo "$recent_runs" | \
-          jq '[.[] | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "cancelled")] | sort_by(.updatedAt) | reverse | .[0]')
-          # 打印出来调试一下，确认取到的是哪个时间
-          echo "Selected Last Run UpdatedAt: $(echo "$last_completed" | jq -r '.updatedAt')"
-
-          conclusion=$(echo "$last_completed" | jq -r '.conclusion // ""')
-          updated_at=$(echo "$last_completed" | jq -r '.updatedAt // ""')
-
-          echo "conclusion: $conclusion, updated_at: $updated_at"
-
-          # 如果没有找到之前的运行记录，允许运行
-          if [[ -z "$updated_at" || "$updated_at" == "null" || "$updated_at" == "" ]]; then
+          else
             echo "should_run=true" >> $GITHUB_OUTPUT
-            echo "Setting should_run=true (no previous completed run found)"
+            echo "Setting should_run=true"
             exit 0
           fi
 
-          ended_time=$(date -d "$updated_at" +%s)
-          current_time=$(date +%s)
-          time_diff=$((current_time - ended_time))
-          echo "time_diff: $time_diff seconds"
+          # # 如果没有正在运行的，获取最近一次完成的运行
+          # last_completed=$(echo "$recent_runs" | \
+          # jq '[.[] | select(.conclusion == "success" or .conclusion == "failure" or .conclusion == "cancelled")] | sort_by(.updatedAt) | reverse | .[0]')
+          # # 打印出来调试一下，确认取到的是哪个时间
+          # echo "Selected Last Run UpdatedAt: $(echo "$last_completed" | jq -r '.updatedAt')"
 
-          # 检查是否已完成且超过30分钟
-          if [[ $time_diff -ge 1800 ]]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-            echo "Setting should_run=true (last run ended $time_diff seconds ago)"
-          else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "Setting should_run=false (only $time_diff seconds since last run)"
-          fi
+          # conclusion=$(echo "$last_completed" | jq -r '.conclusion // ""')
+          # updated_at=$(echo "$last_completed" | jq -r '.updatedAt // ""')
+
+          # echo "conclusion: $conclusion, updated_at: $updated_at"
+
+          # # 如果没有找到之前的运行记录，允许运行
+          # if [[ -z "$updated_at" || "$updated_at" == "null" || "$updated_at" == "" ]]; then
+            # echo "should_run=true" >> $GITHUB_OUTPUT
+            # echo "Setting should_run=true (no previous completed run found)"
+            # exit 0
+          # fi
+
+          # ended_time=$(date -d "$updated_at" +%s)
+          # current_time=$(date +%s)
+          # time_diff=$((current_time - ended_time))
+          # echo "time_diff: $time_diff seconds"
+
+          # # 检查是否已完成且超过30分钟
+          # if [[ $time_diff -ge 1800 ]]; then
+            # echo "should_run=true" >> $GITHUB_OUTPUT
+            # echo "Setting should_run=true (last run ended $time_diff seconds ago)"
+          # else
+            # echo "should_run=false" >> $GITHUB_OUTPUT
+            # echo "Setting should_run=false (only $time_diff seconds since last run)"
+          # fi
 
   run-services:
     runs-on: ubuntu-latest

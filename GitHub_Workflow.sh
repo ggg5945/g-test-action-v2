@@ -7,7 +7,7 @@
 
 
 # 配置变量
-source /etc/profile
+source /root/.profile
 GITHUB_TOKEN="${GITHUB_TOKEN}"  # 从环境变量读取 GitHub Token。在 Tokens (classic) https://github.com/settings/tokens 这个页面申请 
 REPO_OWNER="ggg5945"
 REPO_NAME="g-test-action-v2"

@@ -9,10 +9,10 @@
 # 配置变量
 source /root/.profile
 GITHUB_TOKEN="${GITHUB_TOKEN}"  # 从环境变量读取 GitHub Token。在 Tokens (classic) https://github.com/settings/tokens 这个页面申请 
-REPO_OWNER="ggg5945"
-REPO_NAME="g-test-action-v2"
+REPO_OWNER="${REPO_OWNER}" #"ggg5945"
+REPO_NAME="${REPO_NAME}" #"g-test-action-v2"
 WORKFLOW_FILE="Backend%20Services.yml"  # "Backend Services.yml" 需要url编码
-REF="master"  # 分支名称，可根据需要修改
+REF="${REF}" # "master"  # 分支名称，可根据需要修改
 TRIGGER_SOURCE="api-script(API脚本)"  # 触发来源标识
 
 # 检查 GitHub Token
